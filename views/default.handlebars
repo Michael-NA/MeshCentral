@@ -18838,6 +18838,19 @@
 
             // Some panels must not have scroll bars
             QS('column_l')['overflow'] = ([11,12].indexOf(x)>= 0)?'hidden':null;
+
+            if(x == 11){
+                if (urlargs.autoconnect == 'yes'){
+                    delete urlargs.autoconnect;
+                    autoConnectDesktopTimer = setTimeout(function() { 
+                        connectDesktop(null, 1);//1 - direct to console, no user choice. 
+                    }, 1000);
+                    var url = new URL(window.location.href);
+                    url.searchParams.delete('autoconnect');
+                    window.history.replaceState({}, document.title, url);
+                    //reload();
+                }
+            }
         }
 
         //
