@@ -769,6 +769,11 @@ module.exports.CreateWebServer = function (parent, db, args, certificates, doneF
     };
     */
 
+    var ipcheckingextras = null;
+    if (args.agentallowedip_api != null){
+        ipcheckingextras = require('./ipcheckingextras');
+    }
+
     // Check if the source IP address is in the IP list, return false if not.
     function checkIpAddressEx(req, res, ipList, closeIfThis, redirectUrl) {
         try {
@@ -6549,7 +6554,24 @@ module.exports.CreateWebServer = function (parent, db, args, certificates, doneF
                 // If TLS is used on the agent port, we always use the default TLS certificate.
                 const tlsOptions = { cert: obj.certificates.webdefault.cert, key: obj.certificates.webdefault.key, ca: obj.certificates.webdefault.ca, rejectUnauthorized: true, ciphers: "HIGH:TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_SHA256:TLS_CHACHA20_POLY1305_SHA256", secureOptions: constants.SSL_OP_NO_SSLv2 | constants.SSL_OP_NO_SSLv3 | constants.SSL_OP_NO_COMPRESSION | constants.SSL_OP_CIPHER_SERVER_PREFERENCE | constants.SSL_OP_NO_TLSv1 | constants.SSL_OP_NO_TLSv1_1 };
                 obj.tlsAltServer = require('https').createServer(tlsOptions, obj.agentapp);
-                obj.tlsAltServer.on('secureConnection', function () { /*console.log('tlsAltServer secureConnection');*/ });
+                obj.tlsAltServer.on('connection', async function (socket) { 
+                    const clientIp = socket.remoteAddress.replace('::ffff:', '');
+                    var allowed = false;
+                    if (args.userallowedip != null) {
+                        for (var i = 0; i < args.userallowedip.length; i++) {
+                            if (require('ipcheck').match(clientIp, args.userallowedip[i])) { 
+                                allowed = true;
+                            }
+                        }
+                    } 
+                    if(ipcheckingextras){
+                        if(!allowed)
+                            allowed = ipcheckingextras.ExternalIsIPAllowed(clientIp, args.agentallowedip_api);
+                    }
+                    if(!allowed)
+                        socket.destroy(); 
+                    console.log('tlsAltServer secureConnection: '+socket.remoteAddress, allowed);                     
+                });
                 obj.tlsAltServer.on('error', function (err) { console.log('tlsAltServer error', err); });
                 //obj.tlsAltServer.on('tlsClientError', function (err) { console.log('tlsClientError', err); });
                 obj.tlsAltServer.on('newSession', function (id, data, cb) { if (tlsSessionStoreCount > 1000) { tlsSessionStoreCount = 0; tlsSessionStore = {}; } tlsSessionStore[id.toString('hex')] = data; tlsSessionStoreCount++; cb(); });
